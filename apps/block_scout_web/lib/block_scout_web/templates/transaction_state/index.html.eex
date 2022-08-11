@@ -54,7 +54,7 @@
                     <%= format_wei_value(from_after, :ether) %>
                   </td>
                   <td class="stakes-td text-danger">
-                    <%= format_wei_value(from_diff, :ether) %>
+                    ▼ <%= format_wei_value(from_diff, :ether) %>
                   </td>
                 </tr>
                 <tr>
@@ -72,12 +72,12 @@
                     <%= format_wei_value(to_after, :ether) %>
                   </td>
                   <td class="stakes-td text-success">
-                    <%= format_wei_value(to_diff, :ether) %>
+                    ▲ <%= format_wei_value(to_diff, :ether) %>
                   </td>
                 </tr>
                 <tr>
                   <td class="stakes-td">
-                    <dt class="col-sm-3 col-lg-2 text-muted">
+                    <dt class="text-muted">
                       <%= render BlockScoutWeb.CommonComponentsView, "_i_tooltip_2.html",
                     text: gettext("A block producer who successfully included the block onto the blockchain.") %>
                       <%= gettext("Miner") %>
@@ -96,7 +96,7 @@
                     <%= format_wei_value(miner_after, :ether) %>
                   </td>
                   <td class="stakes-td text-success">
-                    <%= format_wei_value(miner_diff, :ether) %>
+                    ▲ <%= format_wei_value(miner_diff, :ether) %>
                   </td>
                 </tr>
               </tbody>
