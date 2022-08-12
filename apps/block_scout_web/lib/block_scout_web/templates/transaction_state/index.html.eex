@@ -4,7 +4,27 @@
     <%= render BlockScoutWeb.TransactionView, "_tabs.html", assigns %>
     <div class="card-body">
       <h2 class="card-title list-title-description"><%= gettext "State changes" %></h2>
-      <%= if Chain.transaction_to_status(@transaction) != :pending do %>
+      <%= cond do %>
+        <% Chain.transaction_to_status(@transaction) == :pending -> %>
+        <div class="tile tile-muted text-center">
+          <span><%= gettext "The changes from this transaction have not yet happened since the transaction is still pending." %></span>
+        </div>
+        <% has_state_changes?(@transaction) -> %>
+        <div class="tile tile-muted text-center">
+          <span><%= gettext "This transaction hasn't changed state." %></span>
+        </div>
+        <% true -> %>
+        <% block = @transaction.block %>
+        <% from = @transaction.from_address_hash %>
+        <% to = @transaction.to_address_hash %>
+        <% miner = block.miner_hash %>
+        <% {from_before, to_before, miner_before} = balances_before(@transaction) %>
+        <% from_diff = from_loss(@transaction) %>
+        <% to_diff = to_profit(@transaction) %>
+        <% miner_diff = miner_profit(@transaction) %>
+        <% from_after = Chain.Wei.sub(from_before, from_diff) %>
+        <% to_after = Chain.Wei.sum(to_before, to_diff) %>
+        <% miner_after = Chain.Wei.sum(miner_before, miner_diff) %>
         <div class="addresses-table-container">
           <div class="stakes-table-container">
             <table>
@@ -27,17 +47,6 @@
                   </th>
                 </tr>
               </thead>
-              <% block = @transaction.block %>
-              <% from = @transaction.from_address_hash %>
-              <% to = @transaction.to_address_hash %>
-              <% miner = block.miner_hash %>
-              <% {from_before, to_before, miner_before} = balances_before(@transaction) %>
-              <% from_diff = from_loss(@transaction) %>
-              <% to_diff = to_profit(@transaction) %>
-              <% miner_diff = miner_profit(@transaction) %>
-              <% from_after = Chain.Wei.sub(from_before, from_diff) %>
-              <% to_after = Chain.Wei.sum(to_before, to_diff) %>
-              <% miner_after = Chain.Wei.sum(miner_before, miner_diff) %>
               <tbody>
                 <tr>
                   <td class="stakes-td"></td>
@@ -78,38 +87,34 @@
                   </tr>
                 <% end %>
                 <%= if has_diff?(miner_diff) do %>
-                <tr>
-                  <td class="stakes-td">
-                    <dt class="text-muted">
-                      <%= render BlockScoutWeb.CommonComponentsView, "_i_tooltip_2.html",
+                  <tr>
+                    <td class="stakes-td">
+                      <dt class="text-muted">
+                        <%= render BlockScoutWeb.CommonComponentsView, "_i_tooltip_2.html",
                     text: gettext("A block producer who successfully included the block onto the blockchain.") %>
-                      <%= gettext("Miner") %>
-                    </dt>
-                  </td>
-                  <td class="stakes-td">
-                    <%= link(
+                        <%= gettext("Miner") %>
+                      </dt>
+                    </td>
+                    <td class="stakes-td">
+                      <%= link(
                         miner,
                         to: address_path(@conn, :show, miner)
                     ) %>
-                  </td>
-                  <td class="stakes-td">
-                    <%= format_wei_value(miner_before, :ether) %>
-                  </td>
-                  <td class="stakes-td">
-                    <%= format_wei_value(miner_after, :ether) %>
-                  </td>
-                  <td class="stakes-td text-success">
-                    ▲ <%= format_wei_value(miner_diff, :ether) %>
-                  </td>
-                </tr>
+                    </td>
+                    <td class="stakes-td">
+                      <%= format_wei_value(miner_before, :ether) %>
+                    </td>
+                    <td class="stakes-td">
+                      <%= format_wei_value(miner_after, :ether) %>
+                    </td>
+                    <td class="stakes-td text-success">
+                      ▲ <%= format_wei_value(miner_diff, :ether) %>
+                    </td>
+                  </tr>
                 <% end %>
               </tbody>
             </table>
           </div>
-        </div>
-      <% else %>
-        <div class="tile tile-muted text-center">
-          <span><%= gettext "The changes from this transaction have not yet happened since the transaction is still pending." %></span>
         </div>
       <% end %>
       <button data-error-message class="alert alert-danger col-12 text-left" style="display: none;">

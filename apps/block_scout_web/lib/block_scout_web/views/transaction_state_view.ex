@@ -93,4 +93,8 @@ defmodule BlockScoutWeb.TransactionStateView do
   def has_diff?(%Wei{value: val}) do
     Decimal.gt?(val, Decimal.new(0))
   end
+
+  def has_state_changes?(tx) do
+    not (has_diff?(from_loss(tx)) or has_diff?(to_profit(tx)) or has_diff?(miner_profit(tx)))
+  end
 end
