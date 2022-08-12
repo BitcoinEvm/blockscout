@@ -96,10 +96,7 @@
                       </dt>
                     </td>
                     <td class="stakes-td">
-                      <%= link(
-                        miner,
-                        to: address_path(@conn, :show, miner)
-                    ) %>
+                      <%= render BlockScoutWeb.AddressView, "_link.html", address: block.miner, contract: false, use_custom_tooltip: false %>
                     </td>
                     <td class="stakes-td">
                       <%= format_wei_value(miner_before, :ether) %>
