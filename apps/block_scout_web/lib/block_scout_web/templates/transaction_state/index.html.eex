@@ -4,7 +4,7 @@
     <%= render BlockScoutWeb.TransactionView, "_tabs.html", assigns %>
     <div class="card-body">
       <h2 class="card-title list-title-description"><%= gettext "State changes" %></h2>
-      <%= if BlockScoutWeb.TransactionView.transaction_status(@transaction) == :success do %>
+      <%= if Chain.transaction_to_status(@transaction) != :pending do %>
         <div class="addresses-table-container">
           <div class="stakes-table-container">
             <table>
@@ -57,24 +57,27 @@
                     ▼ <%= format_wei_value(from_diff, :ether) %>
                   </td>
                 </tr>
-                <tr>
-                  <td class="stakes-td"></td>
-                  <td class="stakes-td">
-                    <%= link(
+                <%= if display_to?(@transaction) and has_diff?(to_diff) do %>
+                  <tr>
+                    <td class="stakes-td"></td>
+                    <td class="stakes-td">
+                      <%= link(
                         to,
                         to: address_path(@conn, :show, to)
                     ) %>
-                  </td>
-                  <td class="stakes-td">
-                    <%= format_wei_value(to_before, :ether) %>
-                  </td>
-                  <td class="stakes-td">
-                    <%= format_wei_value(to_after, :ether) %>
-                  </td>
-                  <td class="stakes-td text-success">
-                    ▲ <%= format_wei_value(to_diff, :ether) %>
-                  </td>
-                </tr>
+                    </td>
+                    <td class="stakes-td">
+                      <%= format_wei_value(to_before, :ether) %>
+                    </td>
+                    <td class="stakes-td">
+                      <%= format_wei_value(to_after, :ether) %>
+                    </td>
+                    <td class="stakes-td text-success">
+                      ▲ <%= format_wei_value(to_diff, :ether) %>
+                    </td>
+                  </tr>
+                <% end %>
+                <%= if has_diff?(miner_diff) do %>
                 <tr>
                   <td class="stakes-td">
                     <dt class="text-muted">
@@ -99,6 +102,7 @@
                     ▲ <%= format_wei_value(miner_diff, :ether) %>
                   </td>
                 </tr>
+                <% end %>
               </tbody>
             </table>
           </div>

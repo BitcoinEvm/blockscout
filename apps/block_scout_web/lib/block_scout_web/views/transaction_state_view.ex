@@ -82,4 +82,15 @@ defmodule BlockScoutWeb.TransactionStateView do
       do: %Wei{value: Decimal.new(0)},
       else: Wei.mult(priority_fee_per_gas, tx.gas_used)
   end
+
+  def display_to?(tx) do
+    case Chain.transaction_to_status(tx) do
+      {:error, _} -> false
+      _ -> true
+    end
+  end
+
+  def has_diff?(%Wei{value: val}) do
+    Decimal.gt?(val, Decimal.new(0))
+  end
 end
