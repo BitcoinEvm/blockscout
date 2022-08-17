@@ -5008,8 +5008,8 @@ defmodule Explorer.Chain do
     end
   end
 
-  def get_token_balance(address_hash, token_address_hash, block_number) do
-    query = TokenBalance.fetch_token_balance(address_hash, token_address_hash, block_number)
+  def get_token_balance(address_hash, token_contract_address_hash, block_number) do
+    query = TokenBalance.fetch_token_balance(address_hash, token_contract_address_hash, block_number)
 
     Repo.one(query)
   end
