@@ -2,29 +2,24 @@
   <%= render BlockScoutWeb.TransactionView, "overview.html", assigns %>
   <div class="card">
     <%= render BlockScoutWeb.TransactionView, "_tabs.html", assigns %>
-    <div class="card-body">
+    <div class="card-body" data-async-load data-async-listing="<%= @current_path %>">
       <h2 class="card-title list-title-description"><%= gettext "State changes" %></h2>
+      <div data-error-message class="alert alert-danger col-12 text-left" style="display: none; padding: 0.75rem 0rem; cursor: pointer;">
+        <span href="#" class="alert alert-danger"><%= gettext("Something went wrong, click to reload.") %></span>
+      </div>
       <%= cond do %>
         <% Chain.transaction_to_status(@transaction) == :pending -> %>
         <div class="tile tile-muted text-center">
           <span><%= gettext "The changes from this transaction have not yet happened since the transaction is still pending." %></span>
         </div>
-        <% has_state_changes?(@transaction) -> %>
+        <% not has_state_changes?(@transaction) -> %>
         <div class="tile tile-muted text-center">
           <span><%= gettext "This transaction hasn't changed state." %></span>
         </div>
-        <% true -> %>
-        <% block = @transaction.block %>
-        <% from = @transaction.from_address_hash %>
-        <% to = @transaction.to_address_hash %>
-        <% miner = block.miner_hash %>
-        <% {from_before, to_before, miner_before} = balances_before(@transaction) %>
-        <% from_diff = from_loss(@transaction) %>
-        <% to_diff = to_profit(@transaction) %>
-        <% miner_diff = miner_profit(@transaction) %>
-        <% from_after = Chain.Wei.sub(from_before, from_diff) %>
-        <% to_after = Chain.Wei.sum(to_before, to_diff) %>
-        <% miner_after = Chain.Wei.sum(miner_before, miner_diff) %>
+        <% true ->  %>
+        <div class="list-top-pagination-container-wrapper">
+          <%= render BlockScoutWeb.CommonComponentsView, "_pagination_container.html", position: "top", cur_page_number: "1", show_pagination_limit: true, data_next_page_button: true, data_prev_page_button: true %>
+        </div>
         <div class="addresses-table-container">
           <div class="stakes-table-container">
             <table>
@@ -34,89 +29,27 @@
                     <div class="stakes-table-th-content">&nbsp;</div>
                   </th>
                   <th class="stakes-table-th">
-                    <div class="stakes-table-th-content">Address</div>
+                    <div class="stakes-table-th-content"><%= gettext "Address" %></div>
                   </th>
                   <th class="stakes-table-th">
-                    <div class="stakes-table-th-content">Balance before</div>
+                    <div class="stakes-table-th-content"><%= gettext "Balance before" %></div>
                   </th>
                   <th class="stakes-table-th">
-                    <div class="stakes-table-th-content">Balance after</div>
+                    <div class="stakes-table-th-content"><%= gettext "Balance after" %></div>
                   </th>
                   <th class="stakes-table-th">
-                    <div class="stakes-table-th-content">Change</div>
+                    <div class="stakes-table-th-content"><%= gettext "Change" %></div>
                   </th>
                 </tr>
               </thead>
-              <tbody>
-                <tr>
-                  <td class="stakes-td"></td>
-                  <td class="stakes-td">
-                    <%= link(
-                        from,
-                        to: address_path(@conn, :show, from)
-                    ) %>
-                  </td>
-                  <td class="stakes-td">
-                    <%= format_wei_value(from_before, :ether) %>
-                  </td>
-                  <td class="stakes-td">
-                    <%= format_wei_value(from_after, :ether) %>
-                  </td>
-                  <td class="stakes-td text-danger">
-                    ▼ <%= format_wei_value(from_diff, :ether) %>
-                  </td>
-                </tr>
-                <%= if display_to?(@transaction) and has_diff?(to_diff) do %>
-                  <tr>
-                    <td class="stakes-td"></td>
-                    <td class="stakes-td">
-                      <%= link(
-                        to,
-                        to: address_path(@conn, :show, to)
-                    ) %>
-                    </td>
-                    <td class="stakes-td">
-                      <%= format_wei_value(to_before, :ether) %>
-                    </td>
-                    <td class="stakes-td">
-                      <%= format_wei_value(to_after, :ether) %>
-                    </td>
-                    <td class="stakes-td text-success">
-                      ▲ <%= format_wei_value(to_diff, :ether) %>
-                    </td>
-                  </tr>
-                <% end %>
-                <%= if has_diff?(miner_diff) do %>
-                  <tr>
-                    <td class="stakes-td">
-                      <dt class="text-muted">
-                        <%= render BlockScoutWeb.CommonComponentsView, "_i_tooltip_2.html",
-                    text: gettext("A block producer who successfully included the block onto the blockchain.") %>
-                        <%= gettext("Miner") %>
-                      </dt>
-                    </td>
-                    <td class="stakes-td">
-                      <%= render BlockScoutWeb.AddressView, "_link.html", address: block.miner, contract: false, use_custom_tooltip: false %>
-                    </td>
-                    <td class="stakes-td">
-                      <%= format_wei_value(miner_before, :ether) %>
-                    </td>
-                    <td class="stakes-td">
-                      <%= format_wei_value(miner_after, :ether) %>
-                    </td>
-                    <td class="stakes-td text-success">
-                      ▲ <%= format_wei_value(miner_diff, :ether) %>
-                    </td>
-                  </tr>
-                <% end %>
+              <tbody data-items>
+                <%= render BlockScoutWeb.CommonComponentsView, "_table-loader.html", columns_num: 5 %>
               </tbody>
             </table>
           </div>
         </div>
       <% end %>
-      <button data-error-message class="alert alert-danger col-12 text-left" style="display: none;">
-        <span href="#" class="alert-link"><%= gettext("Something went wrong, click to reload.") %></span>
-      </button>
+      <%= render BlockScoutWeb.CommonComponentsView, "_pagination_container.html", position: "bottom", cur_page_number: "1", show_pagination_limit: true, data_next_page_button: true, data_prev_page_button: true %>
     </div>
   </div>
 </section>
