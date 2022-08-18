@@ -1,29 +1,44 @@
 <% coin_or_transfer = if @coin_or_token_transfers == :coin, do: :coin, else: elem(List.first(@coin_or_token_transfers), 1)%>
 <%= if coin_or_transfer != :coin and coin_or_transfer.token.type != "ERC-20" or has_diff?(@balance_diff) do %>
   <tr>
-    <%= if Map.get(assigns, :miner, nil) do %>
+    <%= if @address_hash == @burn_address_hash do %>
       <td class="stakes-td">
         <dt class="text-muted">
           <%= render BlockScoutWeb.CommonComponentsView, "_i_tooltip_2.html",
-                    text: gettext("A block producer who successfully included the block onto the blockchain.") %>
-          <%= gettext("Miner") %>
+                    text: gettext("Address used in token mintings and burnings.") %>
+          <%= gettext("Burn address") %>
         </dt>
       </td>
       <td class="stakes-td">
-        <%= render BlockScoutWeb.AddressView, "_link.html", address: @miner, contract: false, use_custom_tooltip: false %>
-      </td>
-    <% else %>
-      <td class="stakes-td"></td>
-      <td class="stakes-td">
         <span><%= link(@address_hash, to: address_path(@conn, :show, @address_hash)) %></span>
       </td>
+      <td class="stakes-td"></td>
+      <td class="stakes-td"></td>
+    <% else %>
+      <%= if Map.get(assigns, :miner, nil) do %>
+        <td class="stakes-td">
+          <dt class="text-muted">
+            <%= render BlockScoutWeb.CommonComponentsView, "_i_tooltip_2.html",
+                    text: gettext("A block producer who successfully included the block onto the blockchain.") %>
+            <%= gettext("Miner") %>
+          </dt>
+        </td>
+        <td class="stakes-td">
+          <%= render BlockScoutWeb.AddressView, "_link.html", address: @miner, contract: false, use_custom_tooltip: false %>
+        </td>
+      <% else %>
+        <td class="stakes-td"></td>
+        <td class="stakes-td">
+          <span><%= link(@address_hash, to: address_path(@conn, :show, @address_hash)) %></span>
+        </td>
+      <% end %>
+      <td class="stakes-td">
+        <span><%= display_value(@balance_before, coin_or_transfer) %></span>
+      </td>
+      <td class="stakes-td">
+        <span><%= display_value(@balance_after, coin_or_transfer) %></span>
+      </td>
     <% end %>
-    <td class="stakes-td">
-      <span><%= display_value(@balance_before, coin_or_transfer) %></span>
-    </td>
-    <td class="stakes-td">
-      <span><%= display_value(@balance_after, coin_or_transfer) %></span>
-    </td>
     <td class="stakes-td">
       <%= if is_list(@coin_or_token_transfers) and elem(List.first(@coin_or_token_transfers), 1).token.type != "ERC-20" do %>
         <%= for {type, transfer} <- @coin_or_token_transfers do %>

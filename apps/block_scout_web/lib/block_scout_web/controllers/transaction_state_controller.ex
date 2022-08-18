@@ -82,6 +82,7 @@ defmodule BlockScoutWeb.TransactionStateController do
           "_state_change.html",
           coin_or_token_transfers: :coin,
           address_hash: from,
+          burn_address_hash: @burn_address_hash,
           balance_before: from_before,
           balance_after: from_after,
           balance_diff: Wei.sub(from_after, from_before),
@@ -97,6 +98,7 @@ defmodule BlockScoutWeb.TransactionStateController do
           "_state_change.html",
           coin_or_token_transfers: :coin,
           address_hash: to,
+          burn_address_hash: @burn_address_hash,
           balance_before: to_before,
           balance_after: to_after,
           balance_diff: Wei.sub(to_after, to_before),
@@ -112,6 +114,7 @@ defmodule BlockScoutWeb.TransactionStateController do
           "_state_change.html",
           coin_or_token_transfers: :coin,
           address_hash: miner,
+          burn_address_hash: @burn_address_hash,
           balance_before: miner_before,
           balance_after: miner_after,
           balance_diff: Wei.sub(miner_after, miner_before),
@@ -140,6 +143,7 @@ defmodule BlockScoutWeb.TransactionStateController do
               "_state_change.html",
               coin_or_token_transfers: transfers,
               address_hash: address,
+              burn_address_hash: @burn_address_hash,
               balance_before: balance_before,
               balance_after: balance,
               balance_diff: Decimal.sub(balance, balance_before),
@@ -228,7 +232,11 @@ defmodule BlockScoutWeb.TransactionStateController do
 
     Chain.block_to_transactions(
       block.hash,
-      [{:necessity_by_association, %{:block => :required}}]
+      [
+        {:necessity_by_association, %{:block => :required}},
+        # we need to consider all transactions before our in block or we would get wrong results
+        {:paging_options, %PagingOptions{key: nil, page_size: 1024}}
+      ]
     )
     |> Enum.reduce_while(
       {from_before, to_before, miner_before},
@@ -282,44 +290,37 @@ defmodule BlockScoutWeb.TransactionStateController do
         token = transfer.token_contract_address_hash
         prev_block = transfer.block_number - 1
 
+        balances_with_from =
         case balances_map do
-          # both from and to addresses already in the map
-          %{^from => %{^token => _}, ^to => %{^token => _}} ->
-            balances_map
+          # from address already in the map
+          %{^from => %{^token => _}} -> balances_map
 
-          # to address is not in the map
-          %{^from => %{^token => _}} ->
-            balances_map
-            |> put_in(
-              Enum.map([to, token], &Access.key(&1, %{})),
-              token_balance_or_zero(to, token, prev_block)
-            )
-
-          # from address is not in the map
-          %{^to => %{^token => _}} ->
-            balances_map
-            |> put_in(
-              Enum.map([from, token], &Access.key(&1, %{})),
-              token_balance_or_zero(from, token, prev_block)
-            )
-
-          # both addresses are not in the map
+          # we need to add from address into the map
           _ ->
-            balances_map
-            |> put_in(
-              Enum.map([to, token], &Access.key(&1, %{})),
-              token_balance_or_zero(to, token, prev_block)
-            )
-            |> put_in(
+            put_in(balances_map
               Enum.map([from, token], &Access.key(&1, %{})),
               token_balance_or_zero(from, token, prev_block)
             )
         end
+
+        case balances_with_from do
+
+          # to address already in the map
+          %{^to => %{^token => _}} -> balances_with_from  
+
+          # we need to add to address into the map
+          _ ->
+            put_in(balances_with_from,
+              Enum.map([to, token], &Access.key(&1, %{})),
+              token_balance_or_zero(to, token, prev_block)
+            )
+        end
       end)
 
-    %PagingOptions{page_size: 50}
-
-    Chain.block_to_transactions(tx.block_hash, [])
+    Chain.block_to_transactions(tx.block_hash, [
+      # we need to consider all transactions before our in block or we would get wrong results
+      {:paging_options, %PagingOptions{key: nil, page_size: 1024}}
+    ])
     |> Enum.reduce_while(
       balances_before,
       fn block_tx, state ->
@@ -340,14 +341,25 @@ defmodule BlockScoutWeb.TransactionStateController do
          include_transfers \\ :no
        ) do
     # point of this function is to include all necessary information for frontend if option :include_transfer is passed
-    do_update_balance = fn old_val, new_val, transfer, type ->
-      if include_transfers == :include_transfers do
-        case old_val do
-          {_, transfers} -> {new_val, [{type, transfer} | transfers]}
-          _ -> {new_val, [{type, transfer}]}
-        end
-      else
-        new_val
+    do_update_balance = fn old_val, transfer_amount, transfer, type ->
+      case {include_transfers, old_val, type} do
+        {:include_transfers, {val, transfers}, :from} ->
+          {Decimal.sub(val, transfer_amount), [{type, transfer} | transfers]}
+
+        {:include_transfers, {val, transfers}, :to} ->
+          {Decimal.add(val, transfer_amount), [{type, transfer} | transfers]}
+
+        {:include_transfers, val, :from} ->
+          {Decimal.sub(val, transfer_amount), [{type, transfer}]}
+
+        {:include_transfers, val, :to} ->
+          {Decimal.add(val, transfer_amount), [{type, transfer}]}
+
+        {_, val, :from} ->
+          Decimal.sub(val, transfer_amount)
+
+        {_, val, :to} ->
+          Decimal.add(val, transfer_amount)
       end
     end
 
@@ -357,41 +369,33 @@ defmodule BlockScoutWeb.TransactionStateController do
       token = transfer.token_contract_address_hash
       transfer_amount = if is_nil(transfer.amount), do: 1, else: transfer.amount
 
-      case state_balances_map do
-        # both from and to addresses are needed to be updated in our map
-        %{^from => %{^token => from_val}, ^to => %{^token => to_val}} ->
-          state_balances_map
-          |> put_in(
-            Enum.map([to, token], &Access.key(&1, %{})),
-            do_update_balance.(to_val, Decimal.add(to_val, transfer_amount), transfer, :to)
-          )
-          |> put_in(
-            Enum.map([from, token], &Access.key(&1, %{})),
-            do_update_balance.(from_val, Decimal.sub(from_val, transfer_amount), transfer, :from)
-          )
-          |> IO.inspect(label: "state_balances_map")
+      balances_map_from_included =
+        case state_balances_map do
+          # from address is needed to be updated in our map
+          %{^from => %{^token => from_val}} ->
+            put_in(
+              state_balances_map,
+              Enum.map([from, token], &Access.key(&1, %{})),
+              do_update_balance.(from_val, transfer_amount, transfer, :from)
+            )
 
-        # from address
-        %{^from => %{^token => val}} ->
-          state_balances_map
-          |> put_in(
-            Enum.map([from, token], &Access.key(&1, %{})),
-            do_update_balance.(val, Decimal.sub(val, transfer_amount), transfer, :from)
-          )
-          |> IO.inspect(label: "state_balances_map")
+          # we are not interested in this address
+          _ ->
+            state_balances_map
+        end
 
-        # from address is not in the map
+      case balances_map_from_included do
+        # to address is needed to be updated in our map
         %{^to => %{^token => val}} ->
-          state_balances_map
-          |> put_in(
+          put_in(
+            balances_map_from_included,
             Enum.map([to, token], &Access.key(&1, %{})),
-            do_update_balance.(val, Decimal.add(val, transfer_amount), transfer, :to)
+            do_update_balance.(val, transfer_amount, transfer, :to)
           )
-          |> IO.inspect(label: "state_balances_map")
 
-        # both addresses are not in the map
+        # we are not interested in this address
         _ ->
-          state_balances_map
+          balances_map_from_included
       end
     end)
   end
