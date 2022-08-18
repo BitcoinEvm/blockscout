@@ -16,7 +16,8 @@ defmodule BlockScoutWeb.TransactionStateController do
   alias Explorer.ExchangeRates.Token
   alias Phoenix.View
 
-  {:ok, burn_address_hash} = Chain.string_to_address_hash("0x0000000000000000000000000000000000000000")
+  {:ok, burn_address_hash} =
+    Chain.string_to_address_hash("0x0000000000000000000000000000000000000000")
 
   @burn_address_hash burn_address_hash
 
@@ -50,7 +51,8 @@ defmodule BlockScoutWeb.TransactionStateController do
           paging_options(params)
         )
 
-      token_transfers_plus_one = Chain.transaction_to_token_transfers(transaction_hash, full_options)
+      token_transfers_plus_one =
+        Chain.transaction_to_token_transfers(transaction_hash, full_options)
 
       {token_transfers, next_page} = split_list_by_page(token_transfers_plus_one)
 
@@ -125,6 +127,8 @@ defmodule BlockScoutWeb.TransactionStateController do
           token_balances_before,
           :include_transfers
         )
+
+      IO.inspect(token_balances_after, label: "token_balances_after")
 
       items =
         Enum.flat_map(token_balances_after, fn {address, balances} ->
@@ -320,7 +324,7 @@ defmodule BlockScoutWeb.TransactionStateController do
       balances_before,
       fn block_tx, state ->
         if block_tx.index < tx.index do
-          block_token_transfers = Chain.transaction_to_token_transfers(tx.hash)
+          block_token_transfers = Chain.transaction_to_token_transfers(block_tx.hash)
           {:cont, do_update_token_balances_from_token_transfers(block_token_transfers, state)}
         else
           # txs ordered by index ascending, so we can halt after facing index greater or equal than index of our tx
@@ -365,34 +369,36 @@ defmodule BlockScoutWeb.TransactionStateController do
             Enum.map([from, token], &Access.key(&1, %{})),
             do_update_balance.(from_val, Decimal.sub(from_val, transfer_amount), transfer, :from)
           )
+          |> IO.inspect(label: "state_balances_map")
 
         # from address
         %{^from => %{^token => val}} ->
-          balances_map
+          state_balances_map
           |> put_in(
-            Enum.map([to, token], &Access.key(&1, %{})),
+            Enum.map([from, token], &Access.key(&1, %{})),
             do_update_balance.(val, Decimal.sub(val, transfer_amount), transfer, :from)
           )
+          |> IO.inspect(label: "state_balances_map")
 
         # from address is not in the map
         %{^to => %{^token => val}} ->
-          balances_map
+          state_balances_map
           |> put_in(
-            Enum.map([from, token], &Access.key(&1, %{})),
+            Enum.map([to, token], &Access.key(&1, %{})),
             do_update_balance.(val, Decimal.add(val, transfer_amount), transfer, :to)
           )
+          |> IO.inspect(label: "state_balances_map")
 
         # both addresses are not in the map
         _ ->
-          balances_map
+          state_balances_map
       end
     end)
   end
 
   def from_loss(tx) do
     {_, fee} = Chain.fee(tx, :wei)
-    fee = %Wei{value: fee}
-    Wei.sum(tx.value, fee)
+    Wei.sum(tx.value, %Wei{value: fee})
   end
 
   def to_profit(tx) do
