@@ -17,9 +17,6 @@
           <span><%= gettext "This transaction hasn't changed state." %></span>
         </div>
         <% true ->  %>
-        <div class="list-top-pagination-container-wrapper">
-          <%= render BlockScoutWeb.CommonComponentsView, "_pagination_container.html", position: "top", cur_page_number: "1", show_pagination_limit: true, data_next_page_button: true, data_prev_page_button: true %>
-        </div>
         <div class="addresses-table-container">
           <div class="stakes-table-container">
             <table>
@@ -49,7 +46,6 @@
           </div>
         </div>
       <% end %>
-      <%= render BlockScoutWeb.CommonComponentsView, "_pagination_container.html", position: "bottom", cur_page_number: "1", show_pagination_limit: true, data_next_page_button: true, data_prev_page_button: true %>
     </div>
   </div>
 </section>

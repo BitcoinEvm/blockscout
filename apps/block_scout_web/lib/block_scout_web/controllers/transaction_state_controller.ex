@@ -1,9 +1,6 @@
 defmodule BlockScoutWeb.TransactionStateController do
   use BlockScoutWeb, :controller
 
-  import BlockScoutWeb.Chain,
-    only: [paging_options: 1, next_page_params: 3, split_list_by_page: 1]
-
   alias BlockScoutWeb.{
     AccessHelpers,
     Controller,
@@ -16,8 +13,7 @@ defmodule BlockScoutWeb.TransactionStateController do
   alias Explorer.ExchangeRates.Token
   alias Phoenix.View
 
-  {:ok, burn_address_hash} =
-    Chain.string_to_address_hash("0x0000000000000000000000000000000000000000")
+  {:ok, burn_address_hash} = Chain.string_to_address_hash("0x0000000000000000000000000000000000000000")
 
   @burn_address_hash burn_address_hash
 
@@ -35,46 +31,27 @@ defmodule BlockScoutWeb.TransactionStateController do
            AccessHelpers.restricted_access?(to_string(transaction.from_address_hash), params),
          {:ok, false} <-
            AccessHelpers.restricted_access?(to_string(transaction.to_address_hash), params) do
-      full_options =
-        Keyword.merge(
-          [
-            necessity_by_association: %{
-              [from_address: :smart_contract] => :optional,
-              [to_address: :smart_contract] => :optional,
-              [from_address: :names] => :optional,
-              [to_address: :names] => :optional,
-              from_address: :required,
-              to_address: :required,
-              token: :required
-            }
-          ],
-          paging_options(params)
-        )
+      full_options = [
+        necessity_by_association: %{
+          [from_address: :smart_contract] => :optional,
+          [to_address: :smart_contract] => :optional,
+          [from_address: :names] => :optional,
+          [to_address: :names] => :optional,
+          from_address: :required,
+          to_address: :required,
+          token: :required
+        },
+        # we need to consider all transactions before our in block or we would get wrong results
+        paging_options: %PagingOptions{key: nil, page_size: 512}
+      ]
 
-      token_transfers_plus_one =
-        Chain.transaction_to_token_transfers(transaction_hash, full_options)
-
-      {token_transfers, next_page} = split_list_by_page(token_transfers_plus_one)
+      token_transfers = Chain.transaction_to_token_transfers(transaction_hash, full_options)
 
       block = transaction.block
       {from_before, to_before, miner_before} = coin_balances_before(transaction)
 
       from = transaction.from_address_hash
       from_after = do_update_coin_balance_from_tx(from, transaction, from_before)
-
-      next_page_url =
-        case next_page_params(next_page, token_transfers, params) do
-          nil ->
-            nil
-
-          next_page_params ->
-            transaction_token_transfer_path(
-              conn,
-              :index,
-              transaction_hash,
-              Map.delete(next_page_params, "type")
-            )
-        end
 
       from_coin_entry =
         View.render_to_string(
@@ -155,8 +132,7 @@ defmodule BlockScoutWeb.TransactionStateController do
       json(
         conn,
         %{
-          items: [from_coin_entry, to_coin_entry, miner_entry | items],
-          next_page_path: next_page_url
+          items: [from_coin_entry, to_coin_entry, miner_entry | items]
         }
       )
     else
@@ -291,26 +267,29 @@ defmodule BlockScoutWeb.TransactionStateController do
         prev_block = transfer.block_number - 1
 
         balances_with_from =
-        case balances_map do
-          # from address already in the map
-          %{^from => %{^token => _}} -> balances_map
+          case balances_map do
+            # from address already in the map
+            %{^from => %{^token => _}} ->
+              balances_map
 
-          # we need to add from address into the map
-          _ ->
-            put_in(balances_map
-              Enum.map([from, token], &Access.key(&1, %{})),
-              token_balance_or_zero(from, token, prev_block)
-            )
-        end
+            # we need to add from address into the map
+            _ ->
+              put_in(
+                balances_map,
+                Enum.map([from, token], &Access.key(&1, %{})),
+                token_balance_or_zero(from, token, prev_block)
+              )
+          end
 
         case balances_with_from do
-
           # to address already in the map
-          %{^to => %{^token => _}} -> balances_with_from  
+          %{^to => %{^token => _}} ->
+            balances_with_from
 
           # we need to add to address into the map
           _ ->
-            put_in(balances_with_from,
+            put_in(
+              balances_with_from,
               Enum.map([to, token], &Access.key(&1, %{})),
               token_balance_or_zero(to, token, prev_block)
             )
