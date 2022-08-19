@@ -1,7 +1,7 @@
 <% coin_or_transfer = if @coin_or_token_transfers == :coin, do: :coin, else: elem(List.first(@coin_or_token_transfers), 1)%>
 <%= if coin_or_transfer != :coin and coin_or_transfer.token.type != "ERC-20" or has_diff?(@balance_diff) do %>
   <tr>
-    <%= if @address_hash == @burn_address_hash do %>
+    <%= if @address.hash == @burn_address_hash do %>
       <td class="stakes-td">
         <dt class="text-muted">
           <%= render BlockScoutWeb.CommonComponentsView, "_i_tooltip_2.html",
@@ -10,12 +10,12 @@
         </dt>
       </td>
       <td class="stakes-td">
-        <span><%= link(@address_hash, to: address_path(@conn, :show, @address_hash)) %></span>
+        <%= render BlockScoutWeb.AddressView, "_link.html", address: @address, contract: BlockScoutWeb.AddressView.contract?(@address), use_custom_tooltip: false %>
       </td>
       <td class="stakes-td"></td>
       <td class="stakes-td"></td>
     <% else %>
-      <%= if Map.get(assigns, :miner, nil) do %>
+      <%= if Map.get(assigns, :miner) do %>
         <td class="stakes-td">
           <dt class="text-muted">
             <%= render BlockScoutWeb.CommonComponentsView, "_i_tooltip_2.html",
@@ -24,12 +24,12 @@
           </dt>
         </td>
         <td class="stakes-td">
-          <%= render BlockScoutWeb.AddressView, "_link.html", address: @miner, contract: false, use_custom_tooltip: false %>
+          <%= render BlockScoutWeb.AddressView, "_link.html", address: @address, contract: false, use_custom_tooltip: false %>
         </td>
       <% else %>
         <td class="stakes-td"></td>
         <td class="stakes-td">
-          <span><%= link(@address_hash, to: address_path(@conn, :show, @address_hash)) %></span>
+          <%= render BlockScoutWeb.AddressView, "_link.html", address: @address, contract: BlockScoutWeb.AddressView.contract?(@address), use_custom_tooltip: false %>
         </td>
       <% end %>
       <td class="stakes-td">

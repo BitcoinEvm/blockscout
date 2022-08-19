@@ -8,12 +8,10 @@ defmodule BlockScoutWeb.TransactionStateController do
     TransactionStateView
   }
 
-  alias Explorer.{Chain, Market, PagingOptions}
-  alias Explorer.Chain.Wei
+  alias Explorer.{Chain, Chain.Wei, Market, PagingOptions}
   alias Explorer.ExchangeRates.Token
   alias Phoenix.View
-  alias Indexer.Fetcher.TokenBalance
-  alias Indexer.Fetcher.CoinBalance
+  alias Indexer.Fetcher.{TokenBalance, CoinBalance}
 
   {:ok, burn_address_hash} = Chain.string_to_address_hash("0x0000000000000000000000000000000000000000")
 
@@ -26,7 +24,9 @@ defmodule BlockScoutWeb.TransactionStateController do
            Chain.hash_to_transaction(
              transaction_hash,
              necessity_by_association: %{
-               [block: :miner] => :required
+               [block: :miner] => :required,
+               from_address: :required,
+               to_address: :required
              }
            ),
          {:ok, false} <-
@@ -52,15 +52,16 @@ defmodule BlockScoutWeb.TransactionStateController do
       block = transaction.block
       {from_before, to_before, miner_before} = coin_balances_before(transaction)
 
-      from = transaction.from_address_hash
-      from_after = do_update_coin_balance_from_tx(from, transaction, from_before)
+      from_hash = transaction.from_address_hash
+      from = transaction.from_address
+      from_after = do_update_coin_balance_from_tx(from_hash, transaction, from_before)
 
       from_coin_entry =
         View.render_to_string(
           TransactionStateView,
           "_state_change.html",
           coin_or_token_transfers: :coin,
-          address_hash: from,
+          address: from,
           burn_address_hash: @burn_address_hash,
           balance_before: from_before,
           balance_after: from_after,
@@ -68,15 +69,16 @@ defmodule BlockScoutWeb.TransactionStateController do
           conn: conn
         )
 
-      to = transaction.to_address_hash
-      to_after = do_update_coin_balance_from_tx(to, transaction, to_before)
+      to_hash = transaction.to_address_hash
+      to = transaction.to_address
+      to_after = do_update_coin_balance_from_tx(to_hash, transaction, to_before)
 
       to_coin_entry =
         View.render_to_string(
           TransactionStateView,
           "_state_change.html",
           coin_or_token_transfers: :coin,
-          address_hash: to,
+          address: to,
           burn_address_hash: @burn_address_hash,
           balance_before: to_before,
           balance_after: to_after,
@@ -84,20 +86,21 @@ defmodule BlockScoutWeb.TransactionStateController do
           conn: conn
         )
 
-      miner = block.miner_hash
-      miner_after = do_update_coin_balance_from_tx(miner, transaction, miner_before)
+      miner_hash = block.miner_hash
+      miner = block.miner
+      miner_after = do_update_coin_balance_from_tx(miner_hash, transaction, miner_before)
 
       miner_entry =
         View.render_to_string(
           TransactionStateView,
           "_state_change.html",
           coin_or_token_transfers: :coin,
-          address_hash: miner,
+          address: miner,
           burn_address_hash: @burn_address_hash,
           balance_before: miner_before,
           balance_after: miner_after,
           balance_diff: Wei.sub(miner_after, miner_before),
-          miner: block.miner,
+          miner: true,
           conn: conn
         )
 
@@ -119,7 +122,7 @@ defmodule BlockScoutWeb.TransactionStateController do
               TransactionStateView,
               "_state_change.html",
               coin_or_token_transfers: transfers,
-              address_hash: address,
+              address: address,
               burn_address_hash: @burn_address_hash,
               balance_before: balance_before,
               balance_after: balance,
@@ -280,17 +283,11 @@ defmodule BlockScoutWeb.TransactionStateController do
   end
 
   def token_balances_before(token_transfers, tx) do
-    # если в мапе нет такого баланса спрашиваем token_balance_or_zero
-    # если есть изменяем существующий
-    # возвращаем мапу с балансами со структорой (баланс -> (мапа с токенами где токен -> баланс))
-
-    put_in(%{a: %{}}, Enum.map([:a, :b, :c], &Access.key(&1, %{})), 42)
-
     balances_before =
       token_transfers
       |> Enum.reduce(%{}, fn transfer, balances_map ->
-        from = transfer.from_address_hash
-        to = transfer.to_address_hash
+        from = transfer.from_address
+        to = transfer.to_address
         token = transfer.token_contract_address_hash
         prev_block = transfer.block_number - 1
 
@@ -305,7 +302,7 @@ defmodule BlockScoutWeb.TransactionStateController do
               put_in(
                 balances_map,
                 Enum.map([from, token], &Access.key(&1, %{})),
-                token_balance_or_zero(from, transfer, prev_block)
+                token_balance_or_zero(from.hash, transfer, prev_block)
               )
           end
 
@@ -319,7 +316,7 @@ defmodule BlockScoutWeb.TransactionStateController do
             put_in(
               balances_with_from,
               Enum.map([to, token], &Access.key(&1, %{})),
-              token_balance_or_zero(to, transfer, prev_block)
+              token_balance_or_zero(to.hash, transfer, prev_block)
             )
         end
       end)
@@ -348,8 +345,8 @@ defmodule BlockScoutWeb.TransactionStateController do
          include_transfers \\ :no
        ) do
     Enum.reduce(token_transfers, balances_map, fn transfer, state_balances_map ->
-      from = transfer.from_address_hash
-      to = transfer.to_address_hash
+      from = transfer.from_address
+      to = transfer.to_address
       token = transfer.token_contract_address_hash
       transfer_amount = if is_nil(transfer.amount), do: 1, else: transfer.amount
 
