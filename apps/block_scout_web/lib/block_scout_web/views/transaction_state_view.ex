@@ -3,7 +3,6 @@ defmodule BlockScoutWeb.TransactionStateView do
 
   alias Explorer.Chain
   alias Explorer.Chain.Wei
-  alias Phoenix.View
 
   import BlockScoutWeb.TransactionStateController,
     only: [from_loss: 1, to_profit: 1, miner_profit: 1]

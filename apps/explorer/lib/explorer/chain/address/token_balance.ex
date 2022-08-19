@@ -3,7 +3,7 @@ defmodule Explorer.Chain.Address.TokenBalance do
   Represents a token balance from an address.
 
   In this table we can see all token balances that a specific addreses had acording to the block
-  numbers. If you want to show onl  y the last balance from an address, consider querying against
+  numbers. If you want to show only the last balance from an address, consider querying against
   `Address.CurrentTokenBalance` instead.
   """
 
