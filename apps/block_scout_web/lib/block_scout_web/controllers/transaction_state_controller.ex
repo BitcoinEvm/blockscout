@@ -261,6 +261,7 @@ defmodule BlockScoutWeb.TransactionStateController do
       # we haven't fetched this balance yet
       _ ->
         json_rpc_named_arguments = Application.get_env(:explorer, :json_rpc_named_arguments)
+
         token_id_int =
           case token_transfer.token_id do
             %Decimal{} -> Decimal.to_integer(token_transfer.token_id)
@@ -346,34 +347,34 @@ defmodule BlockScoutWeb.TransactionStateController do
          balances_map,
          include_transfers \\ :no
        ) do
-    # point of this function is to include all necessary information for frontend if option :include_transfer is passed
-    do_update_balance = fn old_val, transfer_amount, transfer, type ->
-      case {include_transfers, old_val, type} do
-        {:include_transfers, {val, transfers}, :from} ->
-          {Decimal.sub(val, transfer_amount), [{type, transfer} | transfers]}
-
-        {:include_transfers, {val, transfers}, :to} ->
-          {Decimal.add(val, transfer_amount), [{type, transfer} | transfers]}
-
-        {:include_transfers, val, :from} ->
-          {Decimal.sub(val, transfer_amount), [{type, transfer}]}
-
-        {:include_transfers, val, :to} ->
-          {Decimal.add(val, transfer_amount), [{type, transfer}]}
-
-        {_, val, :from} ->
-          Decimal.sub(val, transfer_amount)
-
-        {_, val, :to} ->
-          Decimal.add(val, transfer_amount)
-      end
-    end
-
     Enum.reduce(token_transfers, balances_map, fn transfer, state_balances_map ->
       from = transfer.from_address_hash
       to = transfer.to_address_hash
       token = transfer.token_contract_address_hash
       transfer_amount = if is_nil(transfer.amount), do: 1, else: transfer.amount
+
+      # point of this function is to include all necessary information for frontend if option :include_transfer is passed
+      do_update_balance = fn old_val, type ->
+        case {include_transfers, old_val, type} do
+          {:include_transfers, {val, transfers}, :from} ->
+            {Decimal.sub(val, transfer_amount), [{type, transfer} | transfers]}
+
+          {:include_transfers, {val, transfers}, :to} ->
+            {Decimal.add(val, transfer_amount), [{type, transfer} | transfers]}
+
+          {:include_transfers, val, :from} ->
+            {Decimal.sub(val, transfer_amount), [{type, transfer}]}
+
+          {:include_transfers, val, :to} ->
+            {Decimal.add(val, transfer_amount), [{type, transfer}]}
+
+          {_, val, :from} ->
+            Decimal.sub(val, transfer_amount)
+
+          {_, val, :to} ->
+            Decimal.add(val, transfer_amount)
+        end
+      end
 
       balances_map_from_included =
         case state_balances_map do
@@ -382,7 +383,7 @@ defmodule BlockScoutWeb.TransactionStateController do
             put_in(
               state_balances_map,
               Enum.map([from, token], &Access.key(&1, %{})),
-              do_update_balance.(from_val, transfer_amount, transfer, :from)
+              do_update_balance.(from_val, :from)
             )
 
           # we are not interested in this address
@@ -396,7 +397,7 @@ defmodule BlockScoutWeb.TransactionStateController do
           put_in(
             balances_map_from_included,
             Enum.map([to, token], &Access.key(&1, %{})),
-            do_update_balance.(val, transfer_amount, transfer, :to)
+            do_update_balance.(val, :to)
           )
 
         # we are not interested in this address
