@@ -12,6 +12,8 @@ defmodule BlockScoutWeb.TransactionStateController do
   alias Explorer.Chain.Wei
   alias Explorer.ExchangeRates.Token
   alias Phoenix.View
+  alias Indexer.Fetcher.TokenBalance
+  alias Indexer.Fetcher.CoinBalance
 
   {:ok, burn_address_hash} = Chain.string_to_address_hash("0x0000000000000000000000000000000000000000")
 
@@ -41,7 +43,7 @@ defmodule BlockScoutWeb.TransactionStateController do
           to_address: :required,
           token: :required
         },
-        # we need to consider all transactions before our in block or we would get wrong results
+        # we need to consider all token transfers in block to show whole state change of transaction
         paging_options: %PagingOptions{key: nil, page_size: 512}
       ]
 
@@ -108,8 +110,6 @@ defmodule BlockScoutWeb.TransactionStateController do
           :include_transfers
         )
 
-      IO.inspect(token_balances_after, label: "token_balances_after")
-
       items =
         Enum.flat_map(token_balances_after, fn {address, balances} ->
           Enum.map(balances, fn {token_hash, {balance, transfers}} ->
@@ -129,12 +129,7 @@ defmodule BlockScoutWeb.TransactionStateController do
           end)
         end)
 
-      json(
-        conn,
-        %{
-          items: [from_coin_entry, to_coin_entry, miner_entry | items]
-        }
-      )
+      json(conn, %{items: [from_coin_entry, to_coin_entry, miner_entry | items]})
     else
       {:restricted_access, _} ->
         TransactionController.set_not_found_view(conn, transaction_hash_string)
@@ -192,10 +187,19 @@ defmodule BlockScoutWeb.TransactionStateController do
     end
   end
 
+  def coin_balance_or_zero(address_hash, _block_number) when is_nil(address_hash) do
+    %Wei{value: Decimal.new(0)}
+  end
+
   def coin_balance_or_zero(address_hash, block_number) do
     case Chain.get_coin_balance(address_hash, block_number) do
-      %{value: val} when not is_nil(val) -> val
-      _ -> %Wei{value: Decimal.new(0)}
+      %{value: val} when not is_nil(val) ->
+        val
+
+      _ ->
+        json_rpc_named_arguments = Application.get_env(:explorer, :json_rpc_named_arguments)
+        CoinBalance.run([{address_hash.bytes, block_number}], json_rpc_named_arguments)
+        coin_balance_or_zero(address_hash, block_number)
     end
   end
 
@@ -203,7 +207,9 @@ defmodule BlockScoutWeb.TransactionStateController do
     block = tx.block
 
     from_before = coin_balance_or_zero(tx.from_address_hash, block.number - 1)
+
     to_before = coin_balance_or_zero(tx.to_address_hash, block.number - 1)
+
     miner_before = coin_balance_or_zero(block.miner_hash, block.number - 1)
 
     Chain.block_to_transactions(
@@ -244,10 +250,31 @@ defmodule BlockScoutWeb.TransactionStateController do
     end
   end
 
-  def token_balance_or_zero(address_hash, token_contract_address_hash, block_number) do
+  def token_balance_or_zero(address_hash, token_transfer, block_number) do
+    token = token_transfer.token
+    token_contract_address_hash = token.contract_address_hash
+
     case Chain.get_token_balance(address_hash, token_contract_address_hash, block_number) do
-      %{value: val} when not is_nil(val) -> val
-      _ -> Decimal.new(0)
+      %{value: val} when not is_nil(val) ->
+        val
+
+      # we haven't fetched this balance yet
+      _ ->
+        json_rpc_named_arguments = Application.get_env(:explorer, :json_rpc_named_arguments)
+        token_id_int =
+          case token_transfer.token_id do
+            %Decimal{} -> Decimal.to_integer(token_transfer.token_id)
+            id_int when is_integer(id_int) -> id_int
+            _ -> token_transfer.token_id
+          end
+
+        TokenBalance.run(
+          [{address_hash.bytes, token_contract_address_hash.bytes, block_number, token.type, token_id_int, 0}],
+          json_rpc_named_arguments
+        )
+
+        # after run balance is fetched, so we can call this function again
+        token_balance_or_zero(address_hash, token_transfer, block_number)
     end
   end
 
@@ -277,7 +304,7 @@ defmodule BlockScoutWeb.TransactionStateController do
               put_in(
                 balances_map,
                 Enum.map([from, token], &Access.key(&1, %{})),
-                token_balance_or_zero(from, token, prev_block)
+                token_balance_or_zero(from, transfer, prev_block)
               )
           end
 
@@ -291,7 +318,7 @@ defmodule BlockScoutWeb.TransactionStateController do
             put_in(
               balances_with_from,
               Enum.map([to, token], &Access.key(&1, %{})),
-              token_balance_or_zero(to, token, prev_block)
+              token_balance_or_zero(to, transfer, prev_block)
             )
         end
       end)
