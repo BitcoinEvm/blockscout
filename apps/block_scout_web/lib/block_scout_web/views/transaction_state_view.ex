@@ -22,12 +22,12 @@ defmodule BlockScoutWeb.TransactionStateView do
     not Decimal.eq?(val, Decimal.new(0))
   end
 
-  def positive?(%Wei{value: val}) do
-    Decimal.positive?(val)
+  def not_negative?(%Wei{value: val}) do
+    not Decimal.negative?(val)
   end
 
-  def positive?(val) do
-    Decimal.positive?(val)
+  def not_negative?(val) do
+    not Decimal.negative?(val)
   end
 
   def absolute_value_of(%Wei{value: val}) do

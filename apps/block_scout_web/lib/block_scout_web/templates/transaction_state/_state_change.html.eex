@@ -32,12 +32,17 @@
           <%= render BlockScoutWeb.AddressView, "_link.html", address: @address, contract: BlockScoutWeb.AddressView.contract?(@address), use_custom_tooltip: false %>
         </td>
       <% end %>
-      <td class="stakes-td">
-        <span><%= display_value(@balance_before, coin_or_transfer) %></span>
-      </td>
-      <td class="stakes-td">
-        <span><%= display_value(@balance_after, coin_or_transfer) %></span>
-      </td>
+      <%= if not_negative?(@balance_before) and not_negative?(@balance_after) do %>
+        <td class="stakes-td">
+          <span><%= display_value(@balance_before, coin_or_transfer) %></span>
+        </td>
+        <td class="stakes-td">
+          <span><%= display_value(@balance_after, coin_or_transfer) %></span>
+        </td>
+      <% else %>
+        <td class="stakes-td"></td>
+        <td class="stakes-td"></td>
+      <% end %>
     <% end %>
     <td class="stakes-td">
       <%= if is_list(@coin_or_token_transfers) and elem(List.first(@coin_or_token_transfers), 1).token.type != "ERC-20" do %>
@@ -50,7 +55,7 @@
           <% end %>
         <% end %>
       <% else %>
-        <%= if positive?(@balance_diff) do %>
+        <%= if not_negative?(@balance_diff) do %>
           <span class="mr-4 text-success">▲ <%= display_value(@balance_diff, coin_or_transfer) %></span>
         <% else %>
           <span class="mr-4 text-danger">▼ <%= display_value(absolute_value_of(@balance_diff), coin_or_transfer) %></span>
